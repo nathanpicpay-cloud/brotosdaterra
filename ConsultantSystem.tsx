@@ -215,7 +215,7 @@ const LoginScreen: React.FC = () => {
                             type="text" 
                             value={id}
                             onChange={(e) => setId(e.target.value)}
-                            placeholder="Ex: 18112025"
+                            placeholder="Ex: 592810"
                             className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-green-dark focus:border-transparent outline-none transition-all text-lg tracking-widest text-center"
                             required
                         />
