@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
 import type { Consultant, ConsultantRole, ConsultantStatus, ConsultantStats } from './types';
 import { 
   BrandLogo, UsersIcon, ChartBarIcon, UserCircleIcon, LogoutIcon, 
   SearchIcon, PlusIcon, PencilIcon, TrashIcon, WhatsAppIcon, LocationIcon, CloseIcon,
-  SparklesIcon, ShieldCheckIcon
+  SparklesIcon, ShieldCheckIcon, ShoppingCartIcon
 } from './components/Icons';
 
 // --- 1. Mock Backend / Data Service ---
@@ -183,6 +182,85 @@ const useConsultant = () => {
 };
 
 // --- 3. Components ---
+
+// Order Modal Component
+const OrderModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+    const { user } = useConsultant();
+    const [quantity, setQuantity] = useState(50);
+    const MIN_ORDER = 50;
+
+    if (!isOpen) return null;
+
+    const handleOrder = () => {
+        if (quantity < MIN_ORDER) {
+            alert(`O pedido mínimo é de ${MIN_ORDER} unidades.`);
+            return;
+        }
+
+        const message = `Olá, sou o consultor *${user?.name}* (ID: ${user?.id}).\n\nGostaria de fazer um pedido:\n\n📦 *Produto:* Pomada de Copaíba - Brotos da Terra\n🔢 *Quantidade:* ${quantity} unidades\n\nAguardo confirmação do valor e frete.`;
+        
+        // Assuming a central sales number. Using the mock admin number or a placeholder.
+        const salesNumber = "5571999999999"; 
+        const link = `https://wa.me/${salesNumber}?text=${encodeURIComponent(message)}`;
+        window.open(link, '_blank');
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div className="bg-brand-green-dark p-6 flex justify-between items-center text-white">
+                    <h3 className="text-xl font-bold flex items-center gap-2">
+                        <ShoppingCartIcon /> Fazer Pedido
+                    </h3>
+                    <button onClick={onClose} className="hover:bg-white/20 rounded-full p-1 transition-colors"><CloseIcon /></button>
+                </div>
+                <div className="p-6">
+                    <div className="flex flex-col items-center mb-6">
+                        <img src="https://imgur.com/CGgz38b.png" alt="Pomada de Copaíba" className="w-32 h-32 object-contain mb-4 rounded-lg shadow-sm bg-gray-50 p-2" />
+                        <h4 className="text-lg font-bold text-brand-text text-center">Pomada de Copaíba</h4>
+                        <p className="text-sm text-gray-500 text-center">Brotos da Terra</p>
+                    </div>
+                    
+                    <div className="mb-6">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Quantidade (Mínimo 50)</label>
+                        <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+                            <button 
+                                onClick={() => setQuantity(prev => Math.max(MIN_ORDER, prev - 10))}
+                                className="px-4 py-3 bg-gray-100 hover:bg-gray-200 font-bold text-gray-600 border-r border-gray-300"
+                            >-</button>
+                            <input 
+                                type="number" 
+                                min={MIN_ORDER}
+                                value={quantity}
+                                onChange={(e) => setQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                                className="w-full text-center py-3 outline-none font-bold text-lg text-brand-green-dark"
+                            />
+                            <button 
+                                onClick={() => setQuantity(prev => prev + 10)}
+                                className="px-4 py-3 bg-gray-100 hover:bg-gray-200 font-bold text-gray-600 border-l border-gray-300"
+                            >+</button>
+                        </div>
+                        {quantity < MIN_ORDER && (
+                            <p className="text-red-500 text-xs mt-2 font-medium">A quantidade mínima é de {MIN_ORDER} unidades.</p>
+                        )}
+                    </div>
+
+                    <button 
+                        onClick={handleOrder}
+                        disabled={quantity < MIN_ORDER}
+                        className={`w-full py-4 rounded-lg font-bold text-lg shadow-md transition-all flex items-center justify-center gap-2
+                            ${quantity >= MIN_ORDER 
+                                ? 'bg-green-600 text-white hover:bg-green-700 hover:scale-[1.02]' 
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                    >
+                        <WhatsAppIcon /> Enviar Pedido via WhatsApp
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // Login Component
 const LoginScreen: React.FC = () => {
@@ -524,6 +602,7 @@ const ConsultantsList: React.FC<{ filterParentId?: string; title: string; allowA
 const DashboardShell: React.FC = () => {
     const { user, logout } = useConsultant();
     const [activeTab, setActiveTab] = useState<'home' | 'team' | 'all'>('home');
+    const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
@@ -551,6 +630,13 @@ const DashboardShell: React.FC = () => {
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'home' ? 'bg-brand-earth text-brand-green-dark font-bold' : 'hover:bg-white/10'}`}
                     >
                         <ChartBarIcon /> Visão Geral
+                    </button>
+
+                    <button 
+                        onClick={() => setIsOrderModalOpen(true)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors hover:bg-white/10 text-yellow-300 font-bold`}
+                    >
+                        <ShoppingCartIcon /> Fazer Pedido
                     </button>
 
                     {(user?.role === 'leader' || user?.role === 'admin') && (
@@ -588,6 +674,9 @@ const DashboardShell: React.FC = () => {
                 {activeTab === 'team' && <ConsultantsList filterParentId={user?.id} title="Minha Equipe" />}
                 {activeTab === 'all' && <ConsultantsList title="Todos os Consultores" />}
             </main>
+            
+            {/* Order Modal */}
+            <OrderModal isOpen={isOrderModalOpen} onClose={() => setIsOrderModalOpen(false)} />
         </div>
     );
 };
