@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { supabase } from './lib/supabaseClient';
 import type { Consultant, ConsultantRole, ConsultantStats } from './types';
@@ -10,28 +9,31 @@ import {
 
 // --- 1. Helpers & Logic ---
 
-/**
- * GENERATE ID RULES:
- * A. Admin (000000) invites -> ID starts with '00' + 4 random digits (format: 00####)
- * B. Consultant invites -> ID starts with '01' + 4 random digits (format: 01####)
- */
 const generateNewID = async (referrerId?: string): Promise<string> => {
     const prefix = referrerId === '000000' ? '00' : '01';
     
-    // Simple retry logic to ensure uniqueness could be added here in a real backend function.
-    // For client-side simulation, we check once.
     let isUnique = false;
     let newId = '';
 
-    while (!isUnique) {
+    // Tenta até 5 vezes encontrar um ID único consultando o banco de verdade
+    for(let i = 0; i < 5; i++) {
         const random = Math.floor(1000 + Math.random() * 9000).toString(); 
         newId = `${prefix}${random}`;
         
-        // Check if exists
-        const { data } = await supabase.from('consultants').select('id').eq('id', newId).maybeSingle();
-        if (!data) isUnique = true;
+        const { data, error } = await supabase.from('consultants').select('id').eq('id', newId).maybeSingle();
+        
+        if (error) {
+            console.error("Erro ao verificar ID:", error);
+            throw new Error("Erro de conexão ao gerar ID.");
+        }
+
+        if (!data) {
+            isUnique = true;
+            break;
+        }
     }
 
+    if (!isUnique) throw new Error("Não foi possível gerar um ID único. Tente novamente.");
     return newId;
 };
 
@@ -44,7 +46,6 @@ interface ConsultantContextType {
     signOut: () => Promise<void>;
     refreshData: () => void;
     consultants: Consultant[];
-    simulateAdminLogin: () => void; // Exposed for simulation/fallback
 }
 
 const ConsultantContext = createContext<ConsultantContextType | undefined>(undefined);
@@ -67,10 +68,10 @@ export const ConsultantProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             
             if (error) throw error;
             setUser(data);
-            fetchTeamData(); // Load dashboard data if profile exists
+            fetchTeamData(); // Carrega dados do dashboard se o perfil existir
         } catch (error) {
-            console.error("Error fetching profile:", error);
-            // Force logout if profile missing to prevent stuck state
+            console.error("Erro ao buscar perfil:", error);
+            // Se o usuário está logado no Auth mas não tem perfil na tabela, fazemos logout para evitar erros
             if (user) signOut(); 
         } finally {
             setLoading(false);
@@ -97,25 +98,8 @@ export const ConsultantProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
     };
 
-    // SIMULATION: Allows login even if Supabase fails, for the Admin user
-    const simulateAdminLogin = () => {
-        const mockAdmin: Consultant = {
-            id: '000000',
-            auth_id: 'mock-admin-uuid',
-            name: 'Administrador Geral',
-            email: 'admin@brotos.com',
-            whatsapp: '00000000000',
-            role: 'admin',
-            created_at: new Date().toISOString()
-        };
-        setUser(mockAdmin);
-        setConsultants([mockAdmin]); // Mock list
-        setStats({ totalConsultants: 1, activeConsultants: 1, totalTeams: 1, newThisMonth: 0 });
-        setLoading(false);
-    };
-
     useEffect(() => {
-        // Initial Session Check
+        // Verifica sessão inicial
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session) {
                 fetchProfile(session.user.id);
@@ -124,7 +108,7 @@ export const ConsultantProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
         });
 
-        // Auth Listener
+        // Ouve mudanças na autenticação
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             if (session) {
                 fetchProfile(session.user.id);
@@ -144,7 +128,7 @@ export const ConsultantProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     return (
         <ConsultantContext.Provider value={{ 
-            user, loading, stats, signOut, refreshData: fetchTeamData, consultants, simulateAdminLogin 
+            user, loading, stats, signOut, refreshData: fetchTeamData, consultants 
         }}>
             {children}
         </ConsultantContext.Provider>
@@ -179,11 +163,11 @@ const RegisterScreen: React.FC<{ referrerId: string; onBack?: () => void }> = ({
         setError('');
 
         try {
-            // 1. Generate ID based on Referrer (Rule 2)
+            // 1. Gerar ID Baseado no Convidante (Regra de Negócio)
             const newId = await generateNewID(referrerId);
             const newRole = referrerId === '000000' ? 'leader' : 'consultant';
 
-            // 2. Create Supabase Auth User
+            // 2. Criar Usuário no Supabase Auth
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email: formData.email,
                 password: formData.password,
@@ -195,9 +179,9 @@ const RegisterScreen: React.FC<{ referrerId: string; onBack?: () => void }> = ({
             });
 
             if (authError) throw authError;
-            if (!authData.user) throw new Error("Falha ao criar usuário de autenticação.");
+            if (!authData.user) throw new Error("Falha ao criar usuário de autenticação. Verifique se o email já existe.");
 
-            // 3. Insert into 'consultants' table
+            // 3. Inserir na tabela 'consultants' (Obrigatório)
             const { error: dbError } = await supabase
                 .from('consultants')
                 .insert([{
@@ -213,21 +197,30 @@ const RegisterScreen: React.FC<{ referrerId: string; onBack?: () => void }> = ({
                 }]);
 
             if (dbError) {
-                console.error(dbError);
-                throw new Error("Erro ao salvar dados do consultor. " + dbError.message);
+                // Se falhar ao salvar no banco, devemos avisar.
+                // Em um cenário ideal, reverteríamos o Auth, mas aqui vamos focar no erro.
+                throw new Error("Erro ao salvar perfil no banco de dados: " + dbError.message);
             }
 
+            // Login automático após cadastro
+            await supabase.auth.signInWithPassword({
+                email: formData.email,
+                password: formData.password
+            });
+            
+            // Redireciona recarregando para garantir estado limpo
             window.location.href = '/';
 
         } catch (err: any) {
-            setError(err.message || "Erro ao cadastrar.");
+            console.error(err);
+            setError(err.message || "Ocorreu um erro inesperado durante o cadastro.");
             setLoading(false);
         }
     };
 
     return (
         <div className="min-h-screen bg-brand-green-light flex items-center justify-center p-4">
-            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full my-8">
+            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full my-8 animate-fade-in">
                 <div className="flex justify-center mb-4"><BrandLogo /></div>
                 <h2 className="text-2xl font-bold text-center text-brand-green-dark mb-2">Cadastro Clube Brotos 🌱</h2>
                 <div className="bg-green-50 p-3 rounded-lg mb-6 text-center text-sm text-green-800 border border-green-200">
@@ -287,7 +280,7 @@ const RegisterScreen: React.FC<{ referrerId: string; onBack?: () => void }> = ({
                             value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
                     </div>
 
-                    {error && <p className="text-red-500 text-sm text-center bg-red-50 p-2 rounded">{error}</p>}
+                    {error && <p className="text-red-500 text-sm text-center bg-red-50 p-2 rounded border border-red-100">{error}</p>}
 
                     <button disabled={loading} type="submit" className="w-full bg-brand-green-dark text-white font-bold py-3 rounded-lg hover:bg-opacity-90 transition-all">
                         {loading ? 'Registrando...' : 'Finalizar Cadastro'}
@@ -306,7 +299,6 @@ const RegisterScreen: React.FC<{ referrerId: string; onBack?: () => void }> = ({
 };
 
 const LoginScreen: React.FC<{ onSignup: () => void }> = ({ onSignup }) => {
-    const { simulateAdminLogin } = useConsultant();
     const [id, setId] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -318,7 +310,7 @@ const LoginScreen: React.FC<{ onSignup: () => void }> = ({ onSignup }) => {
         setError('');
         
         try {
-            // 1. Lookup Email via ID
+            // 1. Buscar Email através do ID na tabela 'consultants'
             const { data, error: dbError } = await supabase
                 .from('consultants')
                 .select('email')
@@ -326,10 +318,11 @@ const LoginScreen: React.FC<{ onSignup: () => void }> = ({ onSignup }) => {
                 .single();
 
             if (dbError || !data) {
-                throw new Error("ID não encontrado. Verifique se digitou corretamente.");
+                console.error("Erro DB:", dbError);
+                throw new Error("ID não encontrado ou erro de conexão.");
             }
 
-            // 2. Auth with Supabase
+            // 2. Autenticar com Supabase usando o email encontrado
             const { error: authError } = await supabase.auth.signInWithPassword({
                 email: data.email,
                 password,
@@ -338,14 +331,6 @@ const LoginScreen: React.FC<{ onSignup: () => void }> = ({ onSignup }) => {
             if (authError) throw new Error("Senha incorreta.");
 
         } catch (err: any) {
-            // --- FALLBACK / SIMULATION ---
-            // If connection fails (common in dev without .env setup), 
-            // but user is the Admin with correct hardcoded credentials, let them in.
-            if (id === '000000' && password === 'jo1234') {
-                simulateAdminLogin();
-                return;
-            }
-
             setError(err.message);
             setLoading(false);
         }
@@ -378,7 +363,7 @@ const LoginScreen: React.FC<{ onSignup: () => void }> = ({ onSignup }) => {
                         />
                     </div>
                     
-                    {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center justify-center gap-2"><ShieldCheckIcon /> {error}</div>}
+                    {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center justify-center gap-2 border border-red-100"><ShieldCheckIcon /> {error}</div>}
                     
                     <button 
                         disabled={loading}
