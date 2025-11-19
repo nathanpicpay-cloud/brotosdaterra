@@ -130,13 +130,19 @@ const TestimonialCard: React.FC<{ testimonial: Testimonial }> = ({ testimonial }
 );
 
 // Feature Card Component
-const FeatureCard: React.FC<{ feature: Feature }> = ({ feature }) => (
-    <div className="text-center p-6">
-        <div className="flex justify-center mb-4">{feature.icon}</div>
-        <h3 className="text-xl font-bold font-serif text-brand-green-dark mb-2">{feature.title}</h3>
-        <p className="text-brand-text">{feature.description}</p>
-    </div>
-);
+const FeatureCard: React.FC<{ feature: Feature }> = ({ feature }) => {
+    // Assuming feature.icon is a component function or element
+    const Icon = feature.icon as React.ElementType;
+    return (
+        <div className="text-center p-6">
+            <div className="flex justify-center mb-4">
+                 <Icon />
+            </div>
+            <h3 className="text-xl font-bold font-serif text-brand-green-dark mb-2">{feature.title}</h3>
+            <p className="text-brand-text">{feature.description}</p>
+        </div>
+    );
+};
 
 // FAQ Item Component
 const FAQItem: React.FC<{ faq: QuestionAnswer; isOpen: boolean; onClick: () => void }> = ({ faq, isOpen, onClick }) => (
@@ -166,68 +172,72 @@ const ConsultantSection: React.FC = () => {
     const { title, subtitle, intro, steps, advantages, values, callToAction, footer } = CONSULTANT_DATA;
 
     return (
-        <section id="seja-consultora" className="py-20 bg-white">
-            <div className="container mx-auto px-6">
+        <section id="seja-consultora" className="py-24 bg-white relative overflow-hidden">
+            <div className="container mx-auto px-6 relative z-10">
                 {/* Header */}
-                <div className="text-center mb-16 max-w-4xl mx-auto">
-                    <h2 className="text-3xl md:text-4xl font-bold font-serif text-brand-green-dark mb-4">{title}</h2>
-                    <h3 className="text-xl text-brand-earth font-semibold mb-6">{subtitle}</h3>
-                    <p className="text-lg text-gray-600">{intro}</p>
+                <div className="text-center mb-20 max-w-4xl mx-auto">
+                    <h2 className="text-4xl md:text-5xl font-bold font-serif text-brand-green-dark mb-6">{title}</h2>
+                    <h3 className="text-xl md:text-2xl text-brand-earth font-medium mb-8 italic">{subtitle}</h3>
+                    <p className="text-lg text-gray-600 leading-relaxed">{intro}</p>
                 </div>
 
                 {/* Steps */}
-                <div className="grid md:grid-cols-3 gap-8 mb-20 relative">
+                <div className="grid md:grid-cols-3 gap-12 mb-24 relative">
                      {/* Connecting line for desktop */}
-                    <div className="hidden md:block absolute top-8 left-[16%] right-[16%] h-0.5 bg-brand-green-light -z-10"></div>
+                    <div className="hidden md:block absolute top-10 left-[16%] right-[16%] h-0.5 bg-gradient-to-r from-transparent via-brand-green-dark/30 to-transparent -z-10"></div>
                     
                     {steps.map((item) => (
-                        <div key={item.step} className="flex flex-col items-center text-center bg-white p-4">
-                            <div className="w-16 h-16 rounded-full bg-brand-green-dark text-white flex items-center justify-center text-2xl font-bold mb-6 shadow-lg border-4 border-white">
+                        <div key={item.step} className="flex flex-col items-center text-center group">
+                            <div className="w-20 h-20 rounded-full bg-white border-4 border-brand-green-dark text-brand-green-dark flex items-center justify-center text-3xl font-bold mb-6 shadow-xl group-hover:scale-110 transition-transform duration-300 relative z-10">
                                 {item.step}
                             </div>
-                            <p className="text-gray-700 font-medium">{item.text}</p>
+                            <p className="text-gray-700 font-medium text-lg leading-snug">{item.text}</p>
                         </div>
                     ))}
                 </div>
 
                 {/* Advantages */}
-                <div className="mb-20">
-                    <h3 className="text-2xl font-bold font-serif text-brand-green-dark mb-10 text-center">Vantagens Exclusivas</h3>
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="mb-24">
+                    <h3 className="text-3xl font-bold font-serif text-brand-green-dark mb-12 text-center">Vantagens Exclusivas</h3>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {advantages.map((adv, idx) => (
-                            <div key={idx} className="bg-brand-green-light p-6 rounded-xl border border-brand-green-light/50 hover:shadow-md transition-shadow">
-                                <h4 className="font-bold text-brand-green-dark mb-3 flex items-center">
-                                    <span className="mr-2 text-brand-earth text-xl">✦</span> {adv.title}
+                            <div key={idx} className="bg-brand-green-light/50 p-8 rounded-2xl border border-transparent hover:border-brand-earth/30 hover:bg-brand-green-light hover:shadow-lg transition-all duration-300 group">
+                                <h4 className="font-bold text-brand-green-dark text-xl mb-4 flex items-center">
+                                    <span className="mr-3 text-brand-earth text-2xl group-hover:scale-125 transition-transform duration-300">✦</span> {adv.title}
                                 </h4>
-                                <p className="text-sm text-brand-text">{adv.description}</p>
+                                <p className="text-brand-text leading-relaxed">{adv.description}</p>
                             </div>
                         ))}
                     </div>
                 </div>
 
                 {/* Values & CTA */}
-                <div className="bg-brand-green-dark rounded-2xl p-8 md:p-12 text-center text-white shadow-2xl relative overflow-hidden">
+                <div className="bg-brand-green-dark rounded-3xl p-10 md:p-16 text-center text-white shadow-2xl relative overflow-hidden">
+                     {/* Decorative blobs */}
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+                    <div className="absolute bottom-0 left-0 w-80 h-80 bg-brand-earth/10 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
+                    
                     <div className="relative z-10">
-                        <h3 className="text-2xl font-bold font-serif mb-8">Nossos Valores</h3>
-                        <div className="flex flex-wrap justify-center gap-4 mb-10">
+                        <h3 className="text-2xl font-serif font-bold mb-8 opacity-90">Nossos Valores</h3>
+                        <div className="flex flex-wrap justify-center gap-4 mb-12">
                             {values.map((val, idx) => (
-                                <span key={idx} className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full border border-white/20 text-sm md:text-base">
+                                <span key={idx} className="bg-white/10 backdrop-blur-md px-6 py-3 rounded-full border border-white/20 text-sm md:text-base font-medium hover:bg-white/20 transition-colors">
                                     {val}
                                 </span>
                             ))}
                         </div>
 
-                        <div className="max-w-2xl mx-auto">
-                            <p className="text-lg mb-8 text-brand-green-light font-medium">{callToAction.text}</p>
+                        <div className="max-w-3xl mx-auto">
+                            <p className="text-xl md:text-2xl mb-10 text-brand-green-light font-serif italic">{callToAction.text}</p>
                             <a 
                                 href="https://wa.me/5571999190515?text=Ol%C3%A1%2C+tenho+interesse+em+ser+consultora+Brotos+da+Terra."
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-block bg-brand-earth text-brand-green-dark font-bold py-4 px-10 rounded-lg text-lg hover:bg-white transition-colors transform hover:scale-105 shadow-lg"
+                                className="inline-block bg-brand-earth text-brand-green-dark font-bold py-4 px-12 rounded-full text-lg shadow-lg hover:shadow-xl hover:bg-white hover:scale-105 transition-all duration-300"
                             >
                                 {callToAction.buttonLabel}
                             </a>
-                            <p className="mt-6 text-xs text-brand-green-light opacity-80">{footer}</p>
+                            <p className="mt-8 text-sm text-brand-green-light/70">{footer}</p>
                         </div>
                     </div>
                 </div>

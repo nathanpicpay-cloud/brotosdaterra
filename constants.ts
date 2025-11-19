@@ -5,31 +5,13 @@ import { LeafIcon, ShieldCheckIcon, SparklesIcon } from './components/Icons';
 export const PRODUCTS: Product[] = [
   {
     id: 1,
-    name: "Pomada Alívio Intenso",
-    description: "Ideal para dores crônicas como artrite, artrose e reumatismo. Uma fórmula concentrada para um alívio profundo e duradouro.",
-    imageUrl: "https://picsum.photos/seed/ointment1/400/400",
-    price: "R$ 49,90",
-    category: "Dores Crônicas",
-    tags: ["Artrite", "Artrose", "Reumatismo"]
-  },
-  {
-    id: 2,
-    name: "Pomada Relaxante Muscular",
-    description: "Perfeita para aliviar tensões e dores musculares após atividades físicas ou um dia cansativo. Promove relaxamento e bem-estar.",
-    imageUrl: "https://picsum.photos/seed/ointment2/400/400",
-    price: "R$ 44,90",
-    category: "Bem-Estar",
-    tags: ["Dor Muscular", "Tensão"]
-  },
-  {
-    id: 3,
-    name: "Pomada Cuidado Localizado",
-    description: "Alívio rápido e eficaz para dores de cabeça, dente ou ouvido. Uma solução natural para desconfortos pontuais do dia a dia.",
-    imageUrl: "https://picsum.photos/seed/ointment3/400/400",
-    price: "R$ 39,90",
-    category: "Uso Diário",
-    tags: ["Dor de Cabeça", "Dente", "Ouvido"]
-  },
+    name: "Pomada de Copaíba",
+    description: "Conhecida como o 'bálsamo da Amazônia', a pomada de Copaíba possui poderosa ação anti-inflamatória e cicatrizante. Ideal para alívio de dores musculares, articulares, ferimentos e inflamações na pele.",
+    imageUrl: "https://i.imgur.com/CGgz38b.jpg",
+    price: "R$ 35,00",
+    category: "Terapêutico",
+    tags: ["Copaíba", "Anti-inflamatório", "Cicatrização", "Dores"]
+  }
 ];
 
 export const TESTIMONIALS: Testimonial[] = [
