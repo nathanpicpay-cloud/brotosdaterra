@@ -1,5 +1,5 @@
 
-import type { Product, Testimonial, Feature, QuestionAnswer } from './types';
+import type { Product, Testimonial, Feature, QuestionAnswer, ConsultantSectionData } from './types';
 import { LeafIcon, ShieldCheckIcon, SparklesIcon } from './components/Icons';
 
 export const PRODUCTS: Product[] = [
@@ -9,6 +9,7 @@ export const PRODUCTS: Product[] = [
     description: "Ideal para dores crônicas como artrite, artrose e reumatismo. Uma fórmula concentrada para um alívio profundo e duradouro.",
     imageUrl: "https://picsum.photos/seed/ointment1/400/400",
     price: "R$ 49,90",
+    category: "Dores Crônicas",
     tags: ["Artrite", "Artrose", "Reumatismo"]
   },
   {
@@ -17,6 +18,7 @@ export const PRODUCTS: Product[] = [
     description: "Perfeita para aliviar tensões e dores musculares após atividades físicas ou um dia cansativo. Promove relaxamento e bem-estar.",
     imageUrl: "https://picsum.photos/seed/ointment2/400/400",
     price: "R$ 44,90",
+    category: "Bem-Estar",
     tags: ["Dor Muscular", "Tensão"]
   },
   {
@@ -25,6 +27,7 @@ export const PRODUCTS: Product[] = [
     description: "Alívio rápido e eficaz para dores de cabeça, dente ou ouvido. Uma solução natural para desconfortos pontuais do dia a dia.",
     imageUrl: "https://picsum.photos/seed/ointment3/400/400",
     price: "R$ 39,90",
+    category: "Uso Diário",
     tags: ["Dor de Cabeça", "Dente", "Ouvido"]
   },
 ];
@@ -96,3 +99,55 @@ export const FAQS: QuestionAnswer[] = [
         answer: "Nossos produtos são formulados para serem suaves, mas recomendamos sempre fazer um teste de toque em uma pequena área da pele (como o antebraço) antes do uso completo, especialmente se você tem histórico de sensibilidade."
     }
 ];
+
+export const CONSULTANT_DATA: ConsultantSectionData = {
+  title: "Seja Consultora Brotos da Terra",
+  subtitle: "Transforme sua paixão por bem-estar e natureza em um negócio próprio",
+  intro: "Venha fazer parte da comunidade Brotos da Terra e construa sua independência financeira com flexibilidade, propósito e apoio constante. Seja dona do seu tempo e do seu sucesso!",
+  steps: [
+    {
+      step: 1,
+      text: "Preencha nosso formulário de consultora e conheça todos os detalhes da oportunidade."
+    },
+    {
+      step: 2,
+      text: "Cadastre-se online e escolha o momento de iniciar sua jornada com o kit de boas-vindas."
+    },
+    {
+      step: 3,
+      text: "Receba seu kit, acesse ferramentas exclusivas e comece a construir seu negócio com nosso suporte."
+    }
+  ],
+  advantages: [
+    {
+      title: "Independência financeira",
+      description: "Seja sua própria chefe, defina seus horários e transforme sua dedicação em lucro."
+    },
+    {
+      title: "Flexibilidade de horário",
+      description: "Você decide quando, como e onde trabalhar — conciliando carreira, família e vida pessoal."
+    },
+    {
+      title: "Ganhos ilimitados",
+      description: "Você define o ritmo do seu negócio. Quanto mais empenho, maior o potencial de retorno."
+    },
+    {
+      title: "Prêmios, reconhecimento e crescimento",
+      description: "Programas especiais de reconhecimento, bonificações, viagens e incentivos para quem se destaca."
+    },
+    {
+      title: "Produtos de qualidade e identidade diferenciada",
+      description: "Trabalhe com uma linha que valoriza o natural, o bem-estar e a autenticidade — alinhada à proposta Brotos da Terra."
+    }
+  ],
+  values: [
+    "Ajudar pessoas a definirem sucesso à sua maneira",
+    "Construir uma rede de consultoras que se apoiam mutuamente",
+    "Oferecer produtos que realmente fazem a diferença"
+  ],
+  callToAction: {
+    text: "Junte-se à comunidade Brotos da Terra hoje mesmo e comece a construir seu negócio do seu jeito.",
+    buttonLabel: "Quero me tornar consultora"
+  },
+  footer: "Para mais informações, entre em contato com nossa equipe ou acesse o formulário de inscrição."
+};

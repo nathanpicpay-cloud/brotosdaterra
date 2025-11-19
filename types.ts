@@ -7,6 +7,7 @@ export interface Product {
   description: string;
   imageUrl: string;
   price: string;
+  category: string;
   tags: string[];
 }
 
@@ -29,4 +30,28 @@ export interface QuestionAnswer {
     id: number;
     question: string;
     answer: string;
+}
+
+export interface ConsultantStep {
+    step: number;
+    text: string;
+}
+
+export interface ConsultantAdvantage {
+    title: string;
+    description: string;
+}
+
+export interface ConsultantSectionData {
+    title: string;
+    subtitle: string;
+    intro: string;
+    steps: ConsultantStep[];
+    advantages: ConsultantAdvantage[];
+    values: string[];
+    callToAction: {
+        text: string;
+        buttonLabel: string;
+    };
+    footer: string;
 }
