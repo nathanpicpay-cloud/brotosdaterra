@@ -326,6 +326,48 @@ const LoginScreen: React.FC<{ onSignup: () => void }> = ({ onSignup }) => {
         }
     };
 
+    // Helper to easily create the admin user if not exists
+    const handleCreateAdmin = async () => {
+        if (!window.confirm("Deseja inicializar o Administrador Geral (ID: 000000 / Senha: jo1234)?")) return;
+        
+        setLoading(true);
+        try {
+            // 1. Sign Up Auth User
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: 'admin@brotos.com',
+                password: 'jo1234',
+                options: { data: { full_name: 'Administrador Geral' } }
+            });
+
+            if (authError) throw authError;
+            if (!authData.user) throw new Error("Erro ao criar usuário de autenticação.");
+
+            // 2. Insert Consultant Record
+            const { error: dbError } = await supabase.from('consultants').insert({
+                id: '000000',
+                auth_id: authData.user.id,
+                name: 'Administrador Geral',
+                email: 'admin@brotos.com',
+                role: 'admin',
+                whatsapp: '00000000000'
+            });
+
+            if (dbError) {
+                // Ignore duplicate key error if just auth succeeded but db failed previously
+                if (!dbError.message.includes('duplicate key')) throw dbError;
+            }
+            
+            alert("Administrador criado com sucesso!\nID: 000000\nSenha: jo1234");
+            setId('000000');
+            setPassword('jo1234');
+
+        } catch (e: any) {
+            alert("Erro ao criar admin: " + e.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-brand-green-light flex items-center justify-center p-4">
             <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border-t-4 border-brand-green-dark">
@@ -338,7 +380,7 @@ const LoginScreen: React.FC<{ onSignup: () => void }> = ({ onSignup }) => {
                         <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">ID de Consultor</label>
                         <div className="relative">
                             <input 
-                                type="text" required placeholder="Ex: 015932"
+                                type="text" required placeholder="Ex: 000000"
                                 value={id} onChange={(e) => setId(e.target.value)}
                                 className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-green-dark focus:border-transparent outline-none transition-all"
                             />
@@ -376,7 +418,14 @@ const LoginScreen: React.FC<{ onSignup: () => void }> = ({ onSignup }) => {
                     Quero ser um Consultor
                 </button>
 
-                <p className="mt-4 text-xs text-gray-400">Esqueceu seu ID? Contate seu líder.</p>
+                <div className="mt-6 pt-4 border-t border-gray-100">
+                    <button 
+                        onClick={handleCreateAdmin}
+                        className="text-xs text-gray-400 hover:text-brand-green-dark underline transition-colors"
+                    >
+                        Inicializar Admin (1º Acesso)
+                    </button>
+                </div>
             </div>
         </div>
     );
