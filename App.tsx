@@ -55,10 +55,9 @@ const Header: React.FC = () => {
     const navLinks = [
         { id: 'inicio', text: 'Início' },
         { id: 'produtos', text: 'Produtos' },
-        { id: 'sobre', text: 'Sobre Nós' },
         { id: 'depoimentos', text: 'Depoimentos' },
         { id: 'seja-consultora', text: 'Seja Consultora' },
-        { id: 'onde-comprar', text: 'Onde Comprar' },
+        { id: 'onde-comprar', text: 'Comprar' },
         { id: 'faq', text: 'FAQ' },
         { id: 'contato', text: 'Contato' },
     ];
@@ -146,7 +145,7 @@ const FeatureCard: React.FC<{ feature: Feature }> = ({ feature }) => {
 
 // FAQ Item Component
 const FAQItem: React.FC<{ faq: QuestionAnswer; isOpen: boolean; onClick: () => void }> = ({ faq, isOpen, onClick }) => (
-    <div className="border-b border-gray-200 py-4">
+    <div className="border-b border-brand-green-dark/20 py-4">
         <button
             onClick={onClick}
             className="w-full flex justify-between items-center text-left text-lg font-semibold text-brand-green-dark focus:outline-none"
@@ -172,7 +171,7 @@ const ConsultantSection: React.FC = () => {
     const { title, subtitle, intro, steps, advantages, values, callToAction, footer } = CONSULTANT_DATA;
 
     return (
-        <section id="seja-consultora" className="py-24 bg-white relative overflow-hidden">
+        <section id="seja-consultora" className="py-24 bg-brand-green-light relative overflow-hidden">
             <div className="container mx-auto px-6 relative z-10">
                 {/* Header */}
                 <div className="text-center mb-20 max-w-4xl mx-auto">
@@ -201,7 +200,7 @@ const ConsultantSection: React.FC = () => {
                     <h3 className="text-3xl font-bold font-serif text-brand-green-dark mb-12 text-center">Vantagens Exclusivas</h3>
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {advantages.map((adv, idx) => (
-                            <div key={idx} className="bg-brand-green-light/50 p-8 rounded-2xl border border-transparent hover:border-brand-earth/30 hover:bg-brand-green-light hover:shadow-lg transition-all duration-300 group">
+                            <div key={idx} className="bg-white p-8 rounded-2xl border border-transparent hover:border-brand-earth/30 hover:shadow-lg transition-all duration-300 group">
                                 <h4 className="font-bold text-brand-green-dark text-xl mb-4 flex items-center">
                                     <span className="mr-3 text-brand-earth text-2xl group-hover:scale-125 transition-transform duration-300">✦</span> {adv.title}
                                 </h4>
@@ -274,14 +273,13 @@ const Footer: React.FC = () => (
                     <h4 className="font-bold text-lg mb-4">Navegação</h4>
                     <ul>
                         <li className="mb-2"><a href="#produtos" onClick={(e) => { e.preventDefault(); scrollToSection('produtos');}} className="hover:text-brand-earth transition-colors">Produtos</a></li>
-                        <li className="mb-2"><a href="#sobre" onClick={(e) => { e.preventDefault(); scrollToSection('sobre');}} className="hover:text-brand-earth transition-colors">Sobre Nós</a></li>
+                        <li className="mb-2"><a href="#depoimentos" onClick={(e) => { e.preventDefault(); scrollToSection('depoimentos');}} className="hover:text-brand-earth transition-colors">Depoimentos</a></li>
                         <li className="mb-2"><a href="#seja-consultora" onClick={(e) => { e.preventDefault(); scrollToSection('seja-consultora');}} className="hover:text-brand-earth transition-colors">Seja Consultora</a></li>
                         <li><a href="#contato" onClick={(e) => { e.preventDefault(); scrollToSection('contato');}} className="hover:text-brand-earth transition-colors">Contato</a></li>
                     </ul>
                 </div>
                 <div>
                     <h4 className="font-bold text-lg mb-4">Contato</h4>
-                    <p className="text-gray-300 mb-2">Loja Parceira em Santa Inês – Maranhão</p>
                     <p className="text-gray-300">contato@brotosdaterra.com.br</p>
                 </div>
                  <div>
@@ -352,24 +350,8 @@ const Site: React.FC = () => {
                 </div>
                 </section>
 
-                {/* About Section */}
-                <section id="sobre" className="py-20 bg-white">
-                    <div className="container mx-auto px-6">
-                        <div className="grid md:grid-cols-2 gap-12 items-center">
-                            <div>
-                                <img src="https://picsum.photos/seed/founder/600/700" alt="Júnior, diretor da Brotos da Terra" className="rounded-lg shadow-xl w-full h-auto object-cover"/>
-                            </div>
-                            <div>
-                                <h2 className="text-3xl md:text-4xl font-bold font-serif text-brand-green-dark mb-4">Nossa Raiz, Nossa História</h2>
-                                <p className="mb-4 text-lg">"Eu sou o Júnior, diretor da Brotos da Terra. Nossa jornada começou com um propósito simples: levar alívio e bem-estar através do poder da natureza. É gratificante saber que estamos no caminho certo, com um produto de qualidade que vem satisfazendo as necessidades de quem confia em nosso trabalho."</p>
-                                <p className="text-gray-600">Com raízes no Maranhão e o coração no cuidado com as pessoas, a Brotos da Terra é mais que uma empresa: é uma missão de vida. Cada pomada é um reflexo do nosso compromisso com a eficácia, a segurança e a confiança que só os ingredientes naturais podem oferecer.</p>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
                 {/* Testimonials Section */}
-                <section id="depoimentos" className="py-20 bg-brand-green-light">
+                <section id="depoimentos" className="py-20 bg-white">
                     <div className="container mx-auto px-6">
                         <div className="text-center mb-12">
                             <h2 className="text-3xl md:text-4xl font-bold font-serif text-brand-green-dark">Quem Usa, Confia</h2>
@@ -385,42 +367,28 @@ const Site: React.FC = () => {
                 <ConsultantSection />
 
                 {/* Where to Buy Section */}
-                <section id="onde-comprar" className="py-20 bg-brand-green-light">
+                <section id="onde-comprar" className="py-20 bg-white">
                     <div className="container mx-auto px-6">
                         <div className="text-center mb-12">
-                            <h2 className="text-3xl md:text-4xl font-bold font-serif text-brand-green-dark">Onde Comprar</h2>
-                            <p className="text-lg text-gray-600 mt-2">Encontre nossos produtos perto de você ou compre online.</p>
+                            <h2 className="text-3xl md:text-4xl font-bold font-serif text-brand-green-dark">Compre Online</h2>
+                            <p className="text-lg text-gray-600 mt-2">Receba nossos produtos no conforto da sua casa com segurança e agilidade.</p>
                         </div>
-                        <div className="grid md:grid-cols-2 gap-12 items-center">
-                            <div className="bg-white p-8 rounded-lg shadow-lg">
-                                <h3 className="text-2xl font-bold font-serif text-brand-green-dark mb-4">Loja Parceira</h3>
-                                <p className="text-lg font-semibold text-brand-text mb-2">Santa Inês – Maranhão</p>
-                                <p className="text-gray-600 mb-6">Visite nosso parceiro para encontrar toda a nossa linha de pomadas terapêuticas.</p>
-                                <h3 className="text-2xl font-bold font-serif text-brand-green-dark mb-4">Compre Online</h3>
-                                <p className="text-gray-600 mb-6">Prefere a comodidade de receber em casa? Peça pelo nosso WhatsApp com entrega para todo o Brasil.</p>
-                                <a href="https://wa.me/5571999190515" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center bg-green-500 text-white font-bold py-3 px-6 rounded-lg text-md hover:bg-green-600 transition-all transform hover:scale-105">
-                                    <WhatsAppIcon />
-                                    <span className="ml-3">Comprar pelo WhatsApp</span>
-                                </a>
-                            </div>
-                            <div className="rounded-lg shadow-xl overflow-hidden h-96">
-                                <iframe 
-                                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d127569.5701833544!2d-45.46194723145408!3d-3.667233299719321!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x92d0a256a2386345%3A0xf631952e4f215562!2sSanta%20In%C3%AAs%2C%20MA!5e0!3m2!1spt-BR!2sbr!4v1716309831962!5m2!1spt-BR!2sbr"
-                                    width="100%" 
-                                    height="100%" 
-                                    style={{ border:0 }} 
-                                    allowFullScreen={false} 
-                                    loading="lazy" 
-                                    referrerPolicy="no-referrer-when-downgrade"
-                                    title="Localização da loja parceira em Santa Inês, Maranhão"
-                                ></iframe>
-                            </div>
+                         <div className="max-w-3xl mx-auto bg-white p-10 rounded-2xl shadow-xl text-center">
+                            <h3 className="text-2xl font-bold font-serif text-brand-green-dark mb-6">Atendimento Personalizado</h3>
+                            <p className="text-lg text-gray-600 mb-8 leading-relaxed">
+                                Você pode adquirir a <strong>Pomada de Copaíba</strong> e outros produtos Brotos da Terra diretamente pelo nosso WhatsApp. 
+                                Enviamos para todo o Brasil!
+                            </p>
+                            <a href="https://wa.me/5571999190515" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center bg-green-500 text-white font-bold py-4 px-10 rounded-full text-lg hover:bg-green-600 transition-all transform hover:scale-105 shadow-lg">
+                                <WhatsAppIcon />
+                                <span className="ml-3">Fazer Pedido pelo WhatsApp</span>
+                            </a>
                         </div>
                     </div>
                 </section>
 
                 {/* FAQ Section */}
-                <section id="faq" className="py-20 bg-white">
+                <section id="faq" className="py-20 bg-brand-green-light">
                     <div className="container mx-auto px-6">
                         <div className="text-center mb-12">
                             <h2 className="text-3xl md:text-4xl font-bold font-serif text-brand-green-dark">Perguntas Frequentes</h2>
