@@ -2,24 +2,23 @@
 // FIX: Import React to provide the React namespace for React.ReactNode.
 import type * as React from 'react';
 
-// --- New Consultant System Types ---
+// --- Consultant System Types (Supabase Integrated) ---
 
 export type ConsultantRole = 'admin' | 'leader' | 'consultant';
-export type ConsultantStatus = 'active' | 'inactive';
 
 export interface Consultant {
-    id: string; // The login ID (e.g., "18112025")
+    id: string; // Primary Key (000000, 00xxxx, 01xxxx)
+    auth_id: string; // Foreign Key to Auth Users
     name: string;
-    photoUrl?: string;
-    whatsapp: string;
     email: string;
-    city: string;
-    state: string;
-    role: ConsultantRole;
-    parentId?: string; // ID of the leader who recruited this consultant
-    status: ConsultantStatus;
-    createdAt: string; // ISO Date string
-    teamName?: string;
+    whatsapp: string;
+    document_id?: string; // CPF or CNPJ
+    address?: string; // Full Address
+    city?: string; // Optional display helper
+    state?: string; // Optional display helper
+    role: ConsultantRole; // 'tipo_usuario'
+    parent_id?: string; // 'id_convidante'
+    created_at: string;
 }
 
 export interface ConsultantStats {

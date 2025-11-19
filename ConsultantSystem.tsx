@@ -1,98 +1,49 @@
-import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
-import type { Consultant, ConsultantRole, ConsultantStatus, ConsultantStats } from './types';
+
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { supabase } from './lib/supabaseClient';
+import type { Consultant, ConsultantRole, ConsultantStats } from './types';
 import { 
   BrandLogo, UsersIcon, ChartBarIcon, UserCircleIcon, LogoutIcon, 
-  SearchIcon, PlusIcon, PencilIcon, TrashIcon, WhatsAppIcon, LocationIcon, CloseIcon,
+  SearchIcon, PlusIcon, WhatsAppIcon, LocationIcon, CloseIcon,
   SparklesIcon, ShieldCheckIcon, ShoppingCartIcon
 } from './components/Icons';
 
-// --- 1. Mock Backend / Data Service ---
+// --- 1. Helpers & Logic ---
 
-const STORAGE_KEY = 'brotos_consultants';
-const INITIAL_ADMIN_ID = '18112025';
-
-const initialAdmin: Consultant = {
-  id: INITIAL_ADMIN_ID,
-  name: 'Administrador Geral',
-  role: 'admin',
-  whatsapp: '71999999999',
-  email: 'admin@brotosdaterra.com.br',
-  city: 'Santa Inês',
-  state: 'MA',
-  status: 'active',
-  createdAt: new Date().toISOString(),
-  teamName: 'Diretoria'
-};
-
-// Helper to generate ID
-const generateID = (consultants: Consultant[]): string => {
+/**
+ * GENERATE ID RULES:
+ * A. Admin (000000) invites -> ID starts with '00' + 4 random digits (format: 00####)
+ * B. Consultant invites -> ID starts with '01' + 4 random digits (format: 01####)
+ */
+const generateNewID = async (referrerId?: string): Promise<string> => {
+    const prefix = referrerId === '000000' ? '00' : '01';
+    
+    // Simple retry logic to ensure uniqueness could be added here in a real backend function.
+    // For client-side simulation, we check once.
+    let isUnique = false;
     let newId = '';
-    do {
-        newId = Math.floor(100000 + Math.random() * 900000).toString();
-    } while (consultants.some(c => c.id === newId) || newId === INITIAL_ADMIN_ID);
-    return newId;
-};
 
-// Service to handle data
-const ConsultantService = {
-    getAll: (): Consultant[] => {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (!stored) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify([initialAdmin]));
-            return [initialAdmin];
-        }
-        return JSON.parse(stored);
-    },
-
-    save: (consultant: Consultant) => {
-        const consultants = ConsultantService.getAll();
-        const index = consultants.findIndex(c => c.id === consultant.id);
-        if (index >= 0) {
-            consultants[index] = consultant;
-        } else {
-            consultants.push(consultant);
-        }
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(consultants));
-        return consultant;
-    },
-
-    delete: (id: string) => {
-        let consultants = ConsultantService.getAll();
-        consultants = consultants.filter(c => c.id !== id);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(consultants));
-    },
-
-    login: (id: string): Consultant | null => {
-        const consultants = ConsultantService.getAll();
-        return consultants.find(c => c.id === id && c.status === 'active') || null;
-    },
-
-    getStats: (): ConsultantStats => {
-        const consultants = ConsultantService.getAll();
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    while (!isUnique) {
+        const random = Math.floor(1000 + Math.random() * 9000).toString(); 
+        newId = `${prefix}${random}`;
         
-        return {
-            totalConsultants: consultants.length,
-            activeConsultants: consultants.filter(c => c.status === 'active').length,
-            totalTeams: new Set(consultants.map(c => c.teamName).filter(Boolean)).size,
-            newThisMonth: consultants.filter(c => new Date(c.createdAt) >= startOfMonth).length
-        };
+        // Check if exists
+        const { data } = await supabase.from('consultants').select('id').eq('id', newId).maybeSingle();
+        if (!data) isUnique = true;
     }
+
+    return newId;
 };
 
 // --- 2. Context ---
 
 interface ConsultantContextType {
     user: Consultant | null;
-    consultants: Consultant[];
+    loading: boolean;
     stats: ConsultantStats;
-    login: (id: string) => Promise<boolean>;
-    logout: () => void;
-    addConsultant: (data: Partial<Consultant>) => Promise<Consultant>;
-    updateConsultant: (id: string, data: Partial<Consultant>) => Promise<void>;
-    deleteConsultant: (id: string) => Promise<void>;
+    signOut: () => Promise<void>;
     refreshData: () => void;
+    consultants: Consultant[];
 }
 
 const ConsultantContext = createContext<ConsultantContextType | undefined>(undefined);
@@ -100,76 +51,83 @@ const ConsultantContext = createContext<ConsultantContextType | undefined>(undef
 export const ConsultantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<Consultant | null>(null);
     const [consultants, setConsultants] = useState<Consultant[]>([]);
-    const [stats, setStats] = useState<ConsultantStats>({ totalConsultants: 0, activeConsultants: 0, totalTeams: 0, newThisMonth: 0 });
+    const [loading, setLoading] = useState(true);
+    const [stats, setStats] = useState<ConsultantStats>({ 
+        totalConsultants: 0, activeConsultants: 0, totalTeams: 0, newThisMonth: 0 
+    });
 
-    const refreshData = () => {
-        const all = ConsultantService.getAll();
-        setConsultants(all);
-        setStats(ConsultantService.getStats());
+    const fetchProfile = async (authId: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('consultants')
+                .select('*')
+                .eq('auth_id', authId)
+                .single();
+            
+            if (error) throw error;
+            setUser(data);
+            fetchTeamData(); // Load dashboard data if profile exists
+        } catch (error) {
+            console.error("Error fetching profile:", error);
+            // Force logout if profile missing to prevent stuck state
+            if (user) signOut(); 
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchTeamData = async () => {
+        const { data, error } = await supabase
+            .from('consultants')
+            .select('*');
+            
+        if (!error && data) {
+            setConsultants(data);
+            
+            const now = new Date();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            
+            setStats({
+                totalConsultants: data.length,
+                activeConsultants: data.length,
+                totalTeams: new Set(data.map(c => c.parent_id).filter(Boolean)).size,
+                newThisMonth: data.filter(c => new Date(c.created_at) >= startOfMonth).length
+            });
+        }
     };
 
     useEffect(() => {
-        refreshData();
-        // Check for session (simple persistence)
-        const sessionUser = localStorage.getItem('brotos_session_user');
-        if (sessionUser) {
-            const userData = JSON.parse(sessionUser);
-            // Re-verify validity
-            const validUser = ConsultantService.login(userData.id);
-            if (validUser) setUser(validUser);
-        }
+        // Initial Session Check
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                fetchProfile(session.user.id);
+            } else {
+                setLoading(false);
+            }
+        });
+
+        // Auth Listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session) {
+                fetchProfile(session.user.id);
+            } else {
+                setUser(null);
+                setLoading(false);
+            }
+        });
+
+        return () => subscription.unsubscribe();
     }, []);
 
-    const login = async (id: string) => {
-        const found = ConsultantService.login(id);
-        if (found) {
-            setUser(found);
-            localStorage.setItem('brotos_session_user', JSON.stringify(found));
-            return true;
-        }
-        return false;
-    };
-
-    const logout = () => {
+    const signOut = async () => {
+        await supabase.auth.signOut();
         setUser(null);
-        localStorage.removeItem('brotos_session_user');
-    };
-
-    const addConsultant = async (data: Partial<Consultant>) => {
-        const all = ConsultantService.getAll();
-        const newConsultant: Consultant = {
-            ...data,
-            id: generateID(all),
-            createdAt: new Date().toISOString(),
-            status: 'active',
-        } as Consultant;
-        
-        ConsultantService.save(newConsultant);
-        refreshData();
-        return newConsultant;
-    };
-
-    const updateConsultant = async (id: string, data: Partial<Consultant>) => {
-        const current = consultants.find(c => c.id === id);
-        if (current) {
-            const updated = { ...current, ...data };
-            ConsultantService.save(updated);
-            refreshData();
-            // Update session if self-update
-            if (user?.id === id) {
-                setUser(updated);
-                localStorage.setItem('brotos_session_user', JSON.stringify(updated));
-            }
-        }
-    };
-
-    const deleteConsultant = async (id: string) => {
-        ConsultantService.delete(id);
-        refreshData();
     };
 
     return (
-        <ConsultantContext.Provider value={{ user, consultants, stats, login, logout, addConsultant, updateConsultant, deleteConsultant, refreshData }}>
+        <ConsultantContext.Provider value={{ 
+            user, loading, stats, signOut, refreshData: fetchTeamData, consultants 
+        }}>
             {children}
         </ConsultantContext.Provider>
     );
@@ -183,7 +141,273 @@ const useConsultant = () => {
 
 // --- 3. Components ---
 
-// Order Modal Component
+const RegisterScreen: React.FC<{ referrerId: string; onBack?: () => void }> = ({ referrerId, onBack }) => {
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        password: '',
+        whatsapp: '',
+        document: '', // CPF/CNPJ
+        address: '',
+        city: '',
+        state: ''
+    });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleRegister = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+
+        try {
+            // 1. Generate ID based on Referrer (Rule 2)
+            const newId = await generateNewID(referrerId);
+            const newRole = referrerId === '000000' ? 'leader' : 'consultant';
+
+            // 2. Create Supabase Auth User
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: formData.email,
+                password: formData.password,
+                options: {
+                    data: {
+                        full_name: formData.name,
+                    }
+                }
+            });
+
+            if (authError) throw authError;
+            if (!authData.user) throw new Error("Falha ao criar usuário de autenticação.");
+
+            // 3. Insert into 'consultants' table
+            const { error: dbError } = await supabase
+                .from('consultants')
+                .insert([{
+                    id: newId,
+                    auth_id: authData.user.id,
+                    name: formData.name,
+                    email: formData.email,
+                    whatsapp: formData.whatsapp,
+                    document_id: formData.document,
+                    address: `${formData.address} - ${formData.city}/${formData.state}`,
+                    role: newRole,
+                    parent_id: referrerId
+                }]);
+
+            if (dbError) {
+                // Rollback would ideally happen here, or manual cleanup
+                console.error(dbError);
+                throw new Error("Erro ao salvar dados do consultor. " + dbError.message);
+            }
+
+            // Success! Auth listener will redirect.
+            window.location.href = '/';
+
+        } catch (err: any) {
+            setError(err.message || "Erro ao cadastrar.");
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-brand-green-light flex items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full my-8">
+                <div className="flex justify-center mb-4"><BrandLogo /></div>
+                <h2 className="text-2xl font-bold text-center text-brand-green-dark mb-2">Cadastro Clube Brotos 🌱</h2>
+                <div className="bg-green-50 p-3 rounded-lg mb-6 text-center text-sm text-green-800 border border-green-200">
+                    {referrerId === '000000' 
+                        ? 'Cadastro direto (Administrativo)' 
+                        : <span>Convite de ID: <strong>{referrerId}</strong></span>
+                    }
+                </div>
+
+                <form onSubmit={handleRegister} className="space-y-4">
+                    <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">Nome Completo</label>
+                        <input required type="text" className="w-full border p-2 rounded" 
+                            value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                         <div>
+                            <label className="text-xs font-bold uppercase text-gray-500">WhatsApp</label>
+                            <input required type="text" className="w-full border p-2 rounded" placeholder="(XX) XXXXX-XXXX"
+                                value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value})} />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold uppercase text-gray-500">CPF / CNPJ</label>
+                            <input required type="text" className="w-full border p-2 rounded" 
+                                value={formData.document} onChange={e => setFormData({...formData, document: e.target.value})} />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">Endereço</label>
+                        <input required type="text" className="w-full border p-2 rounded" placeholder="Rua, Número, Bairro"
+                            value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-xs font-bold uppercase text-gray-500">Cidade</label>
+                            <input required type="text" className="w-full border p-2 rounded" 
+                                value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold uppercase text-gray-500">Estado</label>
+                            <input required type="text" className="w-full border p-2 rounded" maxLength={2} placeholder="UF"
+                                value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">E-mail (Login)</label>
+                        <input required type="email" className="w-full border p-2 rounded" 
+                            value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">Senha de Acesso</label>
+                        <input required type="password" className="w-full border p-2 rounded" minLength={6}
+                            value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                    </div>
+
+                    {error && <p className="text-red-500 text-sm text-center bg-red-50 p-2 rounded">{error}</p>}
+
+                    <button disabled={loading} type="submit" className="w-full bg-brand-green-dark text-white font-bold py-3 rounded-lg hover:bg-opacity-90 transition-all">
+                        {loading ? 'Registrando...' : 'Finalizar Cadastro'}
+                    </button>
+                </form>
+                <div className="mt-4 text-center">
+                    {onBack ? (
+                        <button onClick={onBack} className="text-sm text-gray-500 hover:underline">Voltar para Login</button>
+                    ) : (
+                        <a href="/" className="text-sm text-gray-500 hover:underline">Já tenho ID? Fazer Login</a>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const LoginScreen: React.FC<{ onSignup: () => void }> = ({ onSignup }) => {
+    const [id, setId] = useState('');
+    const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        
+        try {
+            // 1. Lookup Email via ID (Public Read Policy allows this)
+            const { data, error: dbError } = await supabase
+                .from('consultants')
+                .select('email')
+                .eq('id', id)
+                .single();
+
+            if (dbError || !data) {
+                throw new Error("ID não encontrado. Verifique se digitou corretamente.");
+            }
+
+            // 2. Auth with Supabase
+            const { error: authError } = await supabase.auth.signInWithPassword({
+                email: data.email,
+                password,
+            });
+
+            if (authError) throw new Error("Senha incorreta.");
+
+        } catch (err: any) {
+            setError(err.message);
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-brand-green-light flex items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border-t-4 border-brand-green-dark">
+                <div className="flex justify-center mb-6 transform hover:scale-105 transition-transform"><BrandLogo /></div>
+                <h2 className="text-3xl font-serif font-bold text-brand-green-dark mb-1">Clube Brotos 🌱</h2>
+                <p className="text-gray-500 mb-8 text-sm">Área restrita para consultores.</p>
+                
+                <form onSubmit={handleLogin} className="space-y-6">
+                    <div className="text-left group">
+                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">ID de Consultor</label>
+                        <div className="relative">
+                            <input 
+                                type="text" required placeholder="Ex: 015932"
+                                value={id} onChange={(e) => setId(e.target.value)}
+                                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-green-dark focus:border-transparent outline-none transition-all"
+                            />
+                        </div>
+                    </div>
+                    <div className="text-left">
+                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Sua Senha</label>
+                        <input 
+                            type="password" required
+                            value={password} onChange={(e) => setPassword(e.target.value)}
+                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-green-dark focus:border-transparent outline-none transition-all"
+                        />
+                    </div>
+                    
+                    {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center justify-center gap-2"><ShieldCheckIcon /> {error}</div>}
+                    
+                    <button 
+                        disabled={loading}
+                        type="submit"
+                        className="w-full bg-brand-green-dark text-white font-bold py-4 rounded-lg hover:bg-[#1e3d1d] transition-all shadow-lg hover:shadow-xl"
+                    >
+                        {loading ? 'Acessando...' : 'Entrar no Sistema'}
+                    </button>
+                </form>
+                
+                <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
+                    <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">ou</span></div>
+                </div>
+
+                <button 
+                    onClick={onSignup}
+                    className="w-full bg-white text-brand-green-dark border-2 border-brand-green-dark font-bold py-3 rounded-lg hover:bg-green-50 transition-all"
+                >
+                    Quero ser um Consultor
+                </button>
+
+                <p className="mt-4 text-xs text-gray-400">Esqueceu seu ID? Contate seu líder.</p>
+            </div>
+        </div>
+    );
+};
+
+const InviteModal: React.FC<{ isOpen: boolean; onClose: () => void; myId: string }> = ({ isOpen, onClose, myId }) => {
+    if (!isOpen) return null;
+    const inviteLink = `${window.location.origin}?ref=${myId}`;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 text-center animate-fade-in">
+                <div className="w-16 h-16 bg-green-100 text-brand-green-dark rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
+                    <PlusIcon />
+                </div>
+                <h3 className="text-xl font-bold mb-2 text-gray-800">Expandir Equipe</h3>
+                <p className="text-gray-600 mb-6 text-sm">Envie este link para um novo consultor. O sistema identificará você como líder e gerará o ID dele automaticamente.</p>
+                
+                <div className="bg-gray-50 p-4 rounded-lg break-all font-mono text-sm mb-4 border border-dashed border-gray-300 text-gray-600">
+                    {inviteLink}
+                </div>
+                
+                <div className="flex gap-2">
+                    <button onClick={onClose} className="flex-1 py-3 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors">Fechar</button>
+                    <button onClick={() => {navigator.clipboard.writeText(inviteLink); alert('Link copiado!');}} className="flex-1 py-3 bg-brand-green-dark text-white rounded-lg font-bold hover:bg-opacity-90 transition-colors shadow-md">Copiar Link</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const OrderModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
     const { user } = useConsultant();
     const [quantity, setQuantity] = useState(50);
@@ -192,69 +416,37 @@ const OrderModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen
     if (!isOpen) return null;
 
     const handleOrder = () => {
-        if (quantity < MIN_ORDER) {
-            alert(`O pedido mínimo é de ${MIN_ORDER} unidades.`);
-            return;
-        }
-
-        const message = `Olá, sou o consultor *${user?.name}* (ID: ${user?.id}).\n\nGostaria de fazer um pedido:\n\n📦 *Produto:* Pomada de Copaíba - Brotos da Terra\n🔢 *Quantidade:* ${quantity} unidades\n\nAguardo confirmação do valor e frete.`;
-        
-        // Assuming a central sales number. Using the mock admin number or a placeholder.
-        const salesNumber = "5571999999999"; 
-        const link = `https://wa.me/${salesNumber}?text=${encodeURIComponent(message)}`;
-        window.open(link, '_blank');
+        if (quantity < MIN_ORDER) return;
+        const message = `Olá, sou o consultor *${user?.name}* (ID: ${user?.id}).\n\n📝 *NOVO PEDIDO*\n\n📦 Produto: Pomada de Copaíba\n🔢 Quantidade: *${quantity} unidades*\n📍 Entrega: ${user?.address}\n\nAguardo PIX para pagamento.`;
+        window.open(`https://wa.me/5571999999999?text=${encodeURIComponent(message)}`, '_blank');
         onClose();
     };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                <div className="bg-brand-green-dark p-6 flex justify-between items-center text-white">
-                    <h3 className="text-xl font-bold flex items-center gap-2">
-                        <ShoppingCartIcon /> Fazer Pedido
-                    </h3>
-                    <button onClick={onClose} className="hover:bg-white/20 rounded-full p-1 transition-colors"><CloseIcon /></button>
+                <div className="bg-brand-green-dark p-4 flex justify-between items-center text-white shadow-md">
+                    <h3 className="text-lg font-bold flex items-center gap-2"><ShoppingCartIcon /> Novo Pedido</h3>
+                    <button onClick={onClose} className="hover:bg-white/20 rounded-full p-1 transition"><CloseIcon /></button>
                 </div>
                 <div className="p-6">
-                    <div className="flex flex-col items-center mb-6">
-                        <img src="https://imgur.com/CGgz38b.png" alt="Pomada de Copaíba" className="w-32 h-32 object-contain mb-4 rounded-lg shadow-sm bg-gray-50 p-2" />
-                        <h4 className="text-lg font-bold text-brand-text text-center">Pomada de Copaíba</h4>
-                        <p className="text-sm text-gray-500 text-center">Brotos da Terra</p>
+                     <div className="flex gap-4 items-center mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                        <img src="https://imgur.com/CGgz38b.png" alt="Pomada" className="w-20 h-20 object-contain bg-white rounded-md p-1 shadow-sm" />
+                        <div>
+                            <h4 className="font-bold text-gray-800">Pomada de Copaíba</h4>
+                            <p className="text-xs text-green-600 font-semibold bg-green-100 px-2 py-0.5 rounded-full w-fit mt-1">Atacado</p>
+                        </div>
                     </div>
-                    
                     <div className="mb-6">
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Quantidade (Mínimo 50)</label>
-                        <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
-                            <button 
-                                onClick={() => setQuantity(prev => Math.max(MIN_ORDER, prev - 10))}
-                                className="px-4 py-3 bg-gray-100 hover:bg-gray-200 font-bold text-gray-600 border-r border-gray-300"
-                            >-</button>
-                            <input 
-                                type="number" 
-                                min={MIN_ORDER}
-                                value={quantity}
-                                onChange={(e) => setQuantity(Math.max(0, parseInt(e.target.value) || 0))}
-                                className="w-full text-center py-3 outline-none font-bold text-lg text-brand-green-dark"
-                            />
-                            <button 
-                                onClick={() => setQuantity(prev => prev + 10)}
-                                className="px-4 py-3 bg-gray-100 hover:bg-gray-200 font-bold text-gray-600 border-l border-gray-300"
-                            >+</button>
+                        <label className="block text-sm font-bold text-gray-700 mb-3 text-center">Quantidade (Mínimo {MIN_ORDER})</label>
+                        <div className="flex items-center justify-center gap-4">
+                            <button onClick={() => setQuantity(Math.max(MIN_ORDER, quantity - 10))} className="w-10 h-10 flex items-center justify-center bg-gray-200 rounded-full hover:bg-gray-300 font-bold text-xl transition">-</button>
+                            <span className="text-2xl font-bold text-brand-green-dark w-16 text-center">{quantity}</span>
+                            <button onClick={() => setQuantity(quantity + 10)} className="w-10 h-10 flex items-center justify-center bg-gray-200 rounded-full hover:bg-gray-300 font-bold text-xl transition">+</button>
                         </div>
-                        {quantity < MIN_ORDER && (
-                            <p className="text-red-500 text-xs mt-2 font-medium">A quantidade mínima é de {MIN_ORDER} unidades.</p>
-                        )}
                     </div>
-
-                    <button 
-                        onClick={handleOrder}
-                        disabled={quantity < MIN_ORDER}
-                        className={`w-full py-4 rounded-lg font-bold text-lg shadow-md transition-all flex items-center justify-center gap-2
-                            ${quantity >= MIN_ORDER 
-                                ? 'bg-green-600 text-white hover:bg-green-700 hover:scale-[1.02]' 
-                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
-                    >
-                        <WhatsAppIcon /> Enviar Pedido via WhatsApp
+                    <button onClick={handleOrder} className="w-full bg-green-600 text-white py-4 rounded-lg font-bold hover:bg-green-700 shadow-lg transform active:scale-95 transition-all flex justify-center items-center gap-2">
+                        <WhatsAppIcon /> Enviar Pedido
                     </button>
                 </div>
             </div>
@@ -262,433 +454,164 @@ const OrderModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen
     );
 };
 
-// Login Component
-const LoginScreen: React.FC = () => {
-    const { login } = useConsultant();
-    const [id, setId] = useState('');
-    const [error, setError] = useState('');
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
-        const success = await login(id.trim());
-        if (!success) {
-            setError('ID inválido ou usuário inativo. Tente novamente.');
-        }
-    };
-
-    return (
-        <div className="min-h-screen bg-brand-green-light flex items-center justify-center p-4">
-            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
-                <div className="flex justify-center mb-6">
-                    <BrandLogo />
-                </div>
-                <h2 className="text-2xl font-bold font-serif text-brand-green-dark mb-2">Clube Brotos 🌱</h2>
-                <p className="text-gray-600 mb-8">Acesse sua conta utilizando seu ID exclusivo.</p>
-                
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                        <label className="block text-left text-sm font-semibold text-brand-text mb-2">ID de Acesso</label>
-                        <input 
-                            type="text" 
-                            value={id}
-                            onChange={(e) => setId(e.target.value)}
-                            placeholder="Ex: 592810"
-                            className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-green-dark focus:border-transparent outline-none transition-all text-lg tracking-widest text-center"
-                            required
-                        />
-                    </div>
-                    {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
-                    <button 
-                        type="submit"
-                        className="w-full bg-brand-green-dark text-white font-bold py-3 rounded-lg hover:bg-opacity-90 transition-transform transform hover:scale-105"
-                    >
-                        Entrar
-                    </button>
-                </form>
-                <p className="mt-6 text-xs text-gray-400">Dúvidas? Entre em contato com o suporte.</p>
-            </div>
-        </div>
-    );
-};
-
-// Add/Edit Modal
-const ConsultantModal: React.FC<{ 
-    isOpen: boolean; 
-    onClose: () => void; 
-    initialData?: Consultant | null; 
-    isChildAddition?: boolean; // If true, automatically sets parentId
-}> = ({ isOpen, onClose, initialData, isChildAddition }) => {
-    const { addConsultant, updateConsultant, user } = useConsultant();
-    const [formData, setFormData] = useState<Partial<Consultant>>({
-        name: '',
-        email: '',
-        whatsapp: '',
-        city: '',
-        state: '',
-        role: 'consultant',
-        status: 'active',
-        teamName: '',
-    });
-
-    useEffect(() => {
-        if (initialData) {
-            setFormData(initialData);
-        } else {
-            setFormData({
-                name: '',
-                email: '',
-                whatsapp: '',
-                city: '',
-                state: '',
-                role: 'consultant',
-                status: 'active',
-                teamName: isChildAddition && user ? `Equipe de ${user.name}` : '',
-                parentId: isChildAddition && user ? user.id : undefined
-            });
-        }
-    }, [initialData, isOpen, isChildAddition, user]);
-
-    if (!isOpen) return null;
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (initialData && initialData.id) {
-            await updateConsultant(initialData.id, formData);
-        } else {
-            await addConsultant(formData);
-        }
-        onClose();
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
-                <div className="bg-brand-green-dark p-6 flex justify-between items-center text-white">
-                    <h3 className="text-xl font-bold">{initialData ? 'Editar Consultor' : 'Novo Consultor'}</h3>
-                    <button onClick={onClose}><CloseIcon /></button>
-                </div>
-                <div className="p-6 overflow-y-auto">
-                    <form id="consultant-form" onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label>
-                            <input required type="text" className="w-full border p-2 rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp</label>
-                            <input required type="text" className="w-full border p-2 rounded" value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value})} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                            <input required type="email" className="w-full border p-2 rounded" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
-                            <input required type="text" className="w-full border p-2 rounded" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-                            <input required type="text" className="w-full border p-2 rounded" value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} />
-                        </div>
-                        
-                        {/* Only Admin or Leader can see these settings usually, simplified here */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Cargo</label>
-                            <select className="w-full border p-2 rounded bg-white" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as any})}>
-                                <option value="consultant">Consultor</option>
-                                <option value="leader">Líder</option>
-                                {user?.role === 'admin' && <option value="admin">Administrador</option>}
-                            </select>
-                        </div>
-                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                            <select className="w-full border p-2 rounded bg-white" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})}>
-                                <option value="active">Ativo</option>
-                                <option value="inactive">Inativo</option>
-                            </select>
-                        </div>
-                        <div className="md:col-span-2">
-                             <label className="block text-sm font-medium text-gray-700 mb-1">Nome da Equipe (Opcional)</label>
-                            <input type="text" className="w-full border p-2 rounded" value={formData.teamName || ''} onChange={e => setFormData({...formData, teamName: e.target.value})} />
-                        </div>
-                    </form>
-                </div>
-                <div className="p-4 bg-gray-50 flex justify-end gap-3">
-                    <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded">Cancelar</button>
-                    <button type="submit" form="consultant-form" className="px-6 py-2 bg-brand-green-dark text-white rounded font-medium hover:bg-opacity-90">Salvar</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// Dashboard Tabs
-const DashboardHome: React.FC = () => {
-    const { user, stats } = useConsultant();
-    return (
-        <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Olá, {user?.name}!</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-gray-500 font-medium">Total Consultores</h3>
-                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><UsersIcon /></div>
-                    </div>
-                    <p className="text-3xl font-bold text-gray-800">{stats.totalConsultants}</p>
-                </div>
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-gray-500 font-medium">Ativos</h3>
-                        <div className="p-2 bg-green-50 text-green-600 rounded-lg"><SparklesIcon /></div>
-                    </div>
-                    <p className="text-3xl font-bold text-gray-800">{stats.activeConsultants}</p>
-                </div>
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-gray-500 font-medium">Equipes</h3>
-                        <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><ShieldCheckIcon /></div>
-                    </div>
-                    <p className="text-3xl font-bold text-gray-800">{stats.totalTeams}</p>
-                </div>
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-gray-500 font-medium">Novos (Mês)</h3>
-                        <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><ChartBarIcon /></div>
-                    </div>
-                    <p className="text-3xl font-bold text-gray-800">{stats.newThisMonth}</p>
-                </div>
-            </div>
-
-            {/* Quick Action Area */}
-             <div className="bg-gradient-to-r from-brand-green-dark to-brand-green-dark/80 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
-                 <div className="relative z-10">
-                     <h3 className="text-xl font-bold mb-2">Seu ID de Acesso: <span className="bg-white/20 px-2 py-1 rounded font-mono tracking-wider">{user?.id}</span></h3>
-                     <p className="mb-6 opacity-90 max-w-lg">Compartilhe este sistema apenas com consultores autorizados. Mantenha seus dados sempre atualizados para receber novidades e materiais.</p>
-                 </div>
-             </div>
-        </div>
-    );
-};
-
-const ConsultantsList: React.FC<{ filterParentId?: string; title: string; allowAdd?: boolean }> = ({ filterParentId, title, allowAdd = true }) => {
-    const { consultants, deleteConsultant, user } = useConsultant();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingC, setEditingC] = useState<Consultant | null>(null);
-
-    const filtered = consultants.filter(c => {
-        // If filterParentId is set, only show children. If not, assume Admin view (show all).
-        if (filterParentId && c.parentId !== filterParentId) return false;
-        
-        const search = searchTerm.toLowerCase();
-        return c.name.toLowerCase().includes(search) || 
-               c.city.toLowerCase().includes(search) || 
-               c.email.toLowerCase().includes(search);
-    });
-
-    const handleEdit = (c: Consultant) => {
-        setEditingC(c);
-        setIsModalOpen(true);
-    };
-
-    const handleAdd = () => {
-        setEditingC(null);
-        setIsModalOpen(true);
-    };
-
-    const handleDelete = (id: string) => {
-        if(window.confirm('Tem certeza que deseja desativar/excluir este consultor?')) {
-            deleteConsultant(id);
-        }
-    };
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h3 className="text-xl font-bold text-gray-800">{title}</h3>
-                <div className="flex gap-3">
-                    <div className="relative">
-                        <SearchIcon />
-                        <input 
-                            type="text" 
-                            placeholder="Buscar por nome, cidade..." 
-                            className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-green-dark/50 w-full md:w-64"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                        <div className="absolute left-3 top-2.5 text-gray-400 pointer-events-none"></div>
-                    </div>
-                    {allowAdd && (
-                        <button onClick={handleAdd} className="flex items-center gap-2 bg-brand-green-dark text-white px-4 py-2 rounded-lg hover:bg-opacity-90 transition-colors">
-                            <PlusIcon /> <span className="hidden md:inline">Adicionar</span>
-                        </button>
-                    )}
-                </div>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 text-gray-600 text-sm uppercase font-semibold">
-                        <tr>
-                            <th className="p-4">Consultor</th>
-                            <th className="p-4">Contato</th>
-                            <th className="p-4">Localização</th>
-                            <th className="p-4">Cargo/Status</th>
-                            <th className="p-4 text-right">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {filtered.length === 0 ? (
-                            <tr><td colSpan={5} className="p-8 text-center text-gray-500">Nenhum consultor encontrado.</td></tr>
-                        ) : (
-                            filtered.map(c => (
-                                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="p-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-brand-earth/20 flex items-center justify-center text-brand-earth font-bold">
-                                                {c.name.charAt(0)}
-                                            </div>
-                                            <div>
-                                                <p className="font-semibold text-gray-800">{c.name}</p>
-                                                <p className="text-xs text-gray-500">ID: {c.id}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="p-4 text-sm">
-                                        <div className="flex flex-col gap-1">
-                                            <a href={`https://wa.me/55${c.whatsapp}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-green-600 hover:underline">
-                                                <WhatsAppIcon /> {c.whatsapp}
-                                            </a>
-                                            <span className="text-gray-500">{c.email}</span>
-                                        </div>
-                                    </td>
-                                    <td className="p-4 text-sm text-gray-600">
-                                        <div className="flex items-center gap-1">
-                                            <LocationIcon /> {c.city} - {c.state}
-                                        </div>
-                                    </td>
-                                    <td className="p-4">
-                                        <span className={`inline-block px-2 py-1 text-xs rounded-full mr-2 ${c.role === 'admin' ? 'bg-purple-100 text-purple-800' : c.role === 'leader' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                                            {c.role === 'admin' ? 'Admin' : c.role === 'leader' ? 'Líder' : 'Consultor'}
-                                        </span>
-                                        <span className={`inline-block px-2 py-1 text-xs rounded-full ${c.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                            {c.status === 'active' ? 'Ativo' : 'Inativo'}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 text-right">
-                                        <div className="flex justify-end gap-2">
-                                            <button onClick={() => handleEdit(c)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-full"><PencilIcon /></button>
-                                            {user?.role === 'admin' && c.id !== user.id && (
-                                                <button onClick={() => handleDelete(c.id)} className="text-red-600 hover:bg-red-50 p-2 rounded-full"><TrashIcon /></button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-            <ConsultantModal 
-                isOpen={isModalOpen} 
-                onClose={() => setIsModalOpen(false)} 
-                initialData={editingC} 
-                isChildAddition={!!filterParentId}
-            />
-        </div>
-    );
-};
-
-// Main Dashboard Wrapper
 const DashboardShell: React.FC = () => {
-    const { user, logout } = useConsultant();
-    const [activeTab, setActiveTab] = useState<'home' | 'team' | 'all'>('home');
-    const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+    const { user, stats, signOut, consultants } = useConsultant();
+    const [activeTab, setActiveTab] = useState<'home' | 'team'>('home');
+    const [isOrderOpen, setIsOrderOpen] = useState(false);
+    const [isInviteOpen, setIsInviteOpen] = useState(false);
+
+    const myTeam = user?.role === 'admin' 
+        ? consultants 
+        : consultants.filter(c => c.parent_id === user?.id);
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
-            {/* Sidebar */}
-            <aside className="bg-brand-green-dark text-white w-full md:w-72 flex-shrink-0 flex flex-col">
-                <div className="p-6 border-b border-white/10">
+        <div className="min-h-screen bg-gray-100 flex flex-col md:flex-row font-sans">
+            <aside className="bg-brand-green-dark text-white w-full md:w-72 flex-shrink-0 flex flex-col shadow-2xl z-10">
+                <div className="p-6 border-b border-white/10 bg-gradient-to-b from-white/5 to-transparent">
                     <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-white rounded-lg"><BrandLogo /></div>
-                        <span className="font-serif font-bold text-lg">Clube Brotos 🌱</span>
+                        <div className="p-2 bg-white rounded-lg shadow-lg"><BrandLogo /></div>
                     </div>
-                    <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
-                        <div className="w-10 h-10 rounded-full bg-brand-earth flex items-center justify-center font-bold text-brand-green-dark">
-                            {user?.name.charAt(0)}
+                    <div className="flex items-center gap-3 p-3 bg-black/20 rounded-xl backdrop-blur-sm border border-white/10">
+                        <div className="w-10 h-10 rounded-full bg-brand-earth text-brand-green-dark flex items-center justify-center font-bold shadow-inner">
+                            {user?.name?.charAt(0)}
                         </div>
                         <div className="overflow-hidden">
-                            <p className="font-medium truncate">{user?.name}</p>
-                            <p className="text-xs opacity-70 truncate capitalize">{user?.role}</p>
+                            <p className="font-bold text-sm truncate">{user?.name}</p>
+                            <p className="text-xs opacity-70 font-mono">ID: {user?.id}</p>
                         </div>
                     </div>
                 </div>
-                
-                <nav className="flex-1 p-4 space-y-2">
-                    <button 
-                        onClick={() => setActiveTab('home')}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'home' ? 'bg-brand-earth text-brand-green-dark font-bold' : 'hover:bg-white/10'}`}
-                    >
-                        <ChartBarIcon /> Visão Geral
+                <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                    <button onClick={() => setActiveTab('home')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${activeTab === 'home' ? 'bg-white text-brand-green-dark font-bold shadow-md' : 'hover:bg-white/10'}`}>
+                        <ChartBarIcon /> Painel Geral
                     </button>
-
-                    <button 
-                        onClick={() => setIsOrderModalOpen(true)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors hover:bg-white/10 text-yellow-300 font-bold`}
-                    >
-                        <ShoppingCartIcon /> Fazer Pedido
+                    <button onClick={() => setIsOrderOpen(true)} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 text-yellow-300 font-bold transition-colors">
+                        <ShoppingCartIcon /> Novo Pedido
                     </button>
-
-                    {(user?.role === 'leader' || user?.role === 'admin') && (
-                        <button 
-                            onClick={() => setActiveTab('team')}
-                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'team' ? 'bg-brand-earth text-brand-green-dark font-bold' : 'hover:bg-white/10'}`}
-                        >
-                            <UsersIcon /> Minha Equipe
+                     <button onClick={() => setActiveTab('team')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${activeTab === 'team' ? 'bg-white text-brand-green-dark font-bold shadow-md' : 'hover:bg-white/10'}`}>
+                        <UsersIcon /> Minha Equipe
+                    </button>
+                    <div className="pt-4 mt-4 border-t border-white/10">
+                        <p className="px-4 text-xs font-bold text-gray-400 uppercase mb-2">Ações Rápidas</p>
+                        <button onClick={() => setIsInviteOpen(true)} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 text-green-300 font-bold transition-colors">
+                            <PlusIcon /> Convidar Consultor
                         </button>
-                    )}
-
-                    {user?.role === 'admin' && (
-                        <button 
-                            onClick={() => setActiveTab('all')}
-                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'all' ? 'bg-brand-earth text-brand-green-dark font-bold' : 'hover:bg-white/10'}`}
-                        >
-                            <UserCircleIcon /> Todos Consultores
-                        </button>
-                    )}
+                    </div>
                 </nav>
-
-                <div className="p-4 border-t border-white/10">
-                    <button 
-                        onClick={logout} 
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-500/20 text-red-200 hover:text-red-100 transition-colors"
-                    >
-                        <LogoutIcon /> Sair do Sistema
-                    </button>
+                <div className="p-4 bg-black/10">
+                    <button onClick={signOut} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-500/20 text-red-200 transition-colors"><LogoutIcon /> Sair do Sistema</button>
                 </div>
             </aside>
 
-            {/* Content */}
             <main className="flex-1 p-6 md:p-10 overflow-y-auto h-screen">
-                {activeTab === 'home' && <DashboardHome />}
-                {activeTab === 'team' && <ConsultantsList filterParentId={user?.id} title="Minha Equipe" />}
-                {activeTab === 'all' && <ConsultantsList title="Todos os Consultores" />}
+                {activeTab === 'home' && (
+                    <div className="max-w-5xl mx-auto animate-fade-in">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-2">Olá, {user?.name.split(' ')[0]}! 👋</h2>
+                        <p className="text-gray-500 mb-8">Aqui está o resumo do seu negócio hoje.</p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><UsersIcon /></div>
+                                </div>
+                                <h3 className="text-gray-500 font-medium text-sm">Total na Equipe</h3>
+                                <p className="text-4xl font-bold text-gray-800 mt-1">{user?.role === 'admin' ? stats.totalConsultants : myTeam.length}</p>
+                            </div>
+                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-3 bg-green-50 text-green-600 rounded-xl"><SparklesIcon /></div>
+                                </div>
+                                <h3 className="text-gray-500 font-medium text-sm">Novos este Mês</h3>
+                                <p className="text-4xl font-bold text-gray-800 mt-1">{stats.newThisMonth}</p>
+                            </div>
+                             <div className="bg-gradient-to-br from-brand-green-dark to-green-800 text-white p-6 rounded-2xl shadow-lg">
+                                <h3 className="font-bold text-lg mb-2">Indique e Cresça</h3>
+                                <p className="text-white/80 text-sm mb-4">Convide novos consultores para sua rede e aumente seus ganhos.</p>
+                                <button onClick={() => setIsInviteOpen(true)} className="bg-white text-brand-green-dark px-4 py-2 rounded-lg font-bold text-sm w-full hover:bg-gray-100 transition">Gerar Link de Convite</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'team' && (
+                    <div className="max-w-5xl mx-auto animate-fade-in">
+                         <h2 className="text-2xl font-bold text-gray-800 mb-6">Gestão de Equipe</h2>
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-gray-50 text-gray-500 text-xs font-bold uppercase tracking-wider">
+                                        <tr>
+                                            <th className="p-5">Consultor</th>
+                                            <th className="p-5">ID</th>
+                                            <th className="p-5">Contato</th>
+                                            <th className="p-5">Localização</th>
+                                            <th className="p-5">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {myTeam.length === 0 ? (
+                                            <tr><td colSpan={5} className="p-12 text-center text-gray-500">Nenhum consultor na sua rede ainda.</td></tr>
+                                        ) : (
+                                            myTeam.map(c => (
+                                                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="p-5">
+                                                        <p className="font-bold text-gray-800">{c.name}</p>
+                                                        <p className="text-xs text-gray-400">{c.email}</p>
+                                                    </td>
+                                                    <td className="p-5">
+                                                        <span className="bg-gray-100 text-gray-600 font-mono text-xs px-2 py-1 rounded border border-gray-200">{c.id}</span>
+                                                    </td>
+                                                    <td className="p-5">
+                                                        <a href={`https://wa.me/55${c.whatsapp.replace(/\D/g,'')}`} target="_blank" className="flex items-center gap-1 text-green-600 hover:underline font-medium text-sm">
+                                                            <WhatsAppIcon /> {c.whatsapp}
+                                                        </a>
+                                                    </td>
+                                                    <td className="p-5 text-sm text-gray-500">{c.address}</td>
+                                                    <td className="p-5"><span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-1 rounded-full">Ativo</span></td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
             
-            {/* Order Modal */}
-            <OrderModal isOpen={isOrderModalOpen} onClose={() => setIsOrderModalOpen(false)} />
+            <OrderModal isOpen={isOrderOpen} onClose={() => setIsOrderOpen(false)} />
+            <InviteModal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} myId={user?.id || ''} />
         </div>
     );
 };
 
-// --- 4. Main Entry Point ---
+// --- 4. Entry Point ---
 
 export const ConsultantSystem: React.FC = () => {
-    const { user } = useConsultant();
-    return user ? <DashboardShell /> : <LoginScreen />;
+    const { user, loading } = useConsultant();
+    const [referrerId, setReferrerId] = useState<string | null>(null);
+    const [manualRegister, setManualRegister] = useState(false);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const ref = params.get('ref');
+        if (ref) setReferrerId(ref);
+    }, []);
+
+    if (loading) return <div className="min-h-screen flex items-center justify-center bg-brand-green-light text-brand-green-dark font-bold animate-pulse">Carregando Clube Brotos...</div>;
+
+    // Route: Register if (no user AND has ref) OR (user clicked 'Cadastre-se')
+    if (!user && (referrerId || manualRegister)) {
+        return <RegisterScreen 
+            referrerId={referrerId || '000000'} 
+            onBack={manualRegister ? () => setManualRegister(false) : undefined}
+        />;
+    }
+
+    // Route: Dashboard or Login
+    return user ? <DashboardShell /> : <LoginScreen onSignup={() => setManualRegister(true)} />;
 };
 
-// Wrapped Export
 export const ConsultantApp: React.FC = () => (
     <ConsultantProvider>
         <ConsultantSystem />
