@@ -205,7 +205,7 @@ const LoginScreen: React.FC = () => {
                 <div className="flex justify-center mb-6">
                     <BrandLogo />
                 </div>
-                <h2 className="text-2xl font-bold font-serif text-brand-green-dark mb-2">Painel de Consultores</h2>
+                <h2 className="text-2xl font-bold font-serif text-brand-green-dark mb-2">Clube Brotos 🌱</h2>
                 <p className="text-gray-600 mb-8">Acesse sua conta utilizando seu ID exclusivo.</p>
                 
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -532,7 +532,7 @@ const DashboardShell: React.FC = () => {
                 <div className="p-6 border-b border-white/10">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="p-2 bg-white rounded-lg"><BrandLogo /></div>
-                        <span className="font-serif font-bold text-lg">Painel Admin</span>
+                        <span className="font-serif font-bold text-lg">Clube Brotos 🌱</span>
                     </div>
                     <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
                         <div className="w-10 h-10 rounded-full bg-brand-earth flex items-center justify-center font-bold text-brand-green-dark">
@@ -579,7 +579,6 @@ const DashboardShell: React.FC = () => {
                     >
                         <LogoutIcon /> Sair do Sistema
                     </button>
-                    <a href="#" className="block mt-4 text-center text-sm opacity-50 hover:opacity-100 transition-opacity">Voltar ao Site</a>
                 </div>
             </aside>
 
