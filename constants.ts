@@ -1,5 +1,5 @@
 
-import type { Product, Testimonial, Feature, QuestionAnswer, ConsultantSectionData } from './types';
+import type { Product, Feature, QuestionAnswer, ConsultantSectionData } from './types';
 import { LeafIcon, ShieldCheckIcon, SparklesIcon } from './components/Icons';
 
 export const PRODUCTS: Product[] = [
@@ -11,30 +11,6 @@ export const PRODUCTS: Product[] = [
     price: "R$ 35,00",
     category: "Terapêutico",
     tags: ["Copaíba", "Anti-inflamatório", "Cicatrização", "Dores"]
-  }
-];
-
-export const TESTIMONIALS: Testimonial[] = [
-  {
-    id: 1,
-    name: "Maria S.",
-    location: "Santa Inês, MA",
-    quote: "Sofria com dores de artrite há anos. A pomada Alívio Intenso da Brotos da Terra foi a única solução natural que realmente funcionou. Sou muito grata!",
-    imageUrl: "https://picsum.photos/seed/person1/100/100",
-  },
-  {
-    id: 2,
-    name: "João P.",
-    location: "Cliente Online",
-    quote: "Uso a pomada muscular depois dos meus treinos e a recuperação é outra. É gratificante usar um produto de qualidade que a gente sente que funciona de verdade.",
-    imageUrl: "https://picsum.photos/seed/person2/100/100",
-  },
-  {
-    id: 3,
-    name: "Ana C.",
-    location: "Cliente Online",
-    quote: "Tinha minhas dúvidas, mas a pomada para dor de cabeça é incrível. Aplico nas têmporas e sinto o alívio chegar. Recomendo a todos!",
-    imageUrl: "https://picsum.photos/seed/person3/100/100",
   }
 ];
 

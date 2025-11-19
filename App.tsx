@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { Product, Testimonial, Feature, QuestionAnswer } from './types';
-import { PRODUCTS, TESTIMONIALS, FEATURES, FAQS, CONSULTANT_DATA } from './constants';
+import type { Product, Feature, QuestionAnswer } from './types';
+import { PRODUCTS, FEATURES, FAQS, CONSULTANT_DATA } from './constants';
 import { BrandLogo, MenuIcon, CloseIcon, WhatsAppIcon, ChevronDownIcon } from './components/Icons';
 import { AdminPage } from './Admin';
+import { ConsultantApp } from './ConsultantSystem';
 
 // Helper function for smooth scrolling
 const scrollToSection = (id: string) => {
@@ -55,7 +56,6 @@ const Header: React.FC = () => {
     const navLinks = [
         { id: 'inicio', text: 'Início' },
         { id: 'produtos', text: 'Produtos' },
-        { id: 'depoimentos', text: 'Depoimentos' },
         { id: 'seja-consultora', text: 'Seja Consultora' },
         { id: 'onde-comprar', text: 'Comprar' },
         { id: 'faq', text: 'FAQ' },
@@ -116,18 +116,6 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => (
   </div>
 );
 
-// Testimonial Card Component
-const TestimonialCard: React.FC<{ testimonial: Testimonial }> = ({ testimonial }) => (
-    <div className="bg-brand-green-light p-8 rounded-xl shadow-md flex flex-col items-center text-center">
-        <img src={testimonial.imageUrl} alt={testimonial.name} className="w-20 h-20 rounded-full object-cover mb-4 border-4 border-white shadow-lg"/>
-        <p className="text-brand-text italic mb-4">"{testimonial.quote}"</p>
-        <div className="font-semibold text-brand-green-dark">
-            <span className="font-bold">{testimonial.name}</span>
-            <span className="text-sm font-normal">, {testimonial.location}</span>
-        </div>
-    </div>
-);
-
 // Feature Card Component
 const FeatureCard: React.FC<{ feature: Feature }> = ({ feature }) => {
     // Assuming feature.icon is a component function or element
@@ -171,7 +159,7 @@ const ConsultantSection: React.FC = () => {
     const { title, subtitle, intro, steps, advantages, values, callToAction, footer } = CONSULTANT_DATA;
 
     return (
-        <section id="seja-consultora" className="py-24 bg-brand-green-light relative overflow-hidden">
+        <section id="seja-consultora" className="py-24 bg-white relative overflow-hidden">
             <div className="container mx-auto px-6 relative z-10">
                 {/* Header */}
                 <div className="text-center mb-20 max-w-4xl mx-auto">
@@ -200,7 +188,7 @@ const ConsultantSection: React.FC = () => {
                     <h3 className="text-3xl font-bold font-serif text-brand-green-dark mb-12 text-center">Vantagens Exclusivas</h3>
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {advantages.map((adv, idx) => (
-                            <div key={idx} className="bg-white p-8 rounded-2xl border border-transparent hover:border-brand-earth/30 hover:shadow-lg transition-all duration-300 group">
+                            <div key={idx} className="bg-brand-green-light p-8 rounded-2xl border border-transparent hover:border-brand-earth/30 hover:shadow-lg transition-all duration-300 group">
                                 <h4 className="font-bold text-brand-green-dark text-xl mb-4 flex items-center">
                                     <span className="mr-3 text-brand-earth text-2xl group-hover:scale-125 transition-transform duration-300">✦</span> {adv.title}
                                 </h4>
@@ -273,7 +261,6 @@ const Footer: React.FC = () => (
                     <h4 className="font-bold text-lg mb-4">Navegação</h4>
                     <ul>
                         <li className="mb-2"><a href="#produtos" onClick={(e) => { e.preventDefault(); scrollToSection('produtos');}} className="hover:text-brand-earth transition-colors">Produtos</a></li>
-                        <li className="mb-2"><a href="#depoimentos" onClick={(e) => { e.preventDefault(); scrollToSection('depoimentos');}} className="hover:text-brand-earth transition-colors">Depoimentos</a></li>
                         <li className="mb-2"><a href="#seja-consultora" onClick={(e) => { e.preventDefault(); scrollToSection('seja-consultora');}} className="hover:text-brand-earth transition-colors">Seja Consultora</a></li>
                         <li><a href="#contato" onClick={(e) => { e.preventDefault(); scrollToSection('contato');}} className="hover:text-brand-earth transition-colors">Contato</a></li>
                     </ul>
@@ -290,8 +277,13 @@ const Footer: React.FC = () => (
                     </ul>
                 </div>
             </div>
-            <div className="text-center text-gray-400 mt-12 border-t border-gray-700 pt-6">
-                <p>&copy; {new Date().getFullYear()} Brotos da Terra. Todos os direitos reservados. | <a href="#admin" className="hover:text-brand-earth">Admin</a></p>
+            <div className="text-center text-gray-400 mt-12 border-t border-gray-700 pt-6 flex flex-col md:flex-row justify-between items-center">
+                <p>&copy; {new Date().getFullYear()} Brotos da Terra. Todos os direitos reservados.</p>
+                <div className="mt-4 md:mt-0 space-x-4 text-sm">
+                    <a href="#admin" className="hover:text-brand-earth">Admin Produtos</a>
+                    <span className="text-gray-600">|</span>
+                    <a href="#painel-consultor" className="hover:text-brand-earth font-semibold text-brand-earth">Painel de Consultores</a>
+                </div>
             </div>
         </div>
     </footer>
@@ -350,24 +342,11 @@ const Site: React.FC = () => {
                 </div>
                 </section>
 
-                {/* Testimonials Section */}
-                <section id="depoimentos" className="py-20 bg-white">
-                    <div className="container mx-auto px-6">
-                        <div className="text-center mb-12">
-                            <h2 className="text-3xl md:text-4xl font-bold font-serif text-brand-green-dark">Quem Usa, Confia</h2>
-                            <p className="text-lg text-gray-600 mt-2">Histórias reais de alívio e bem-estar.</p>
-                        </div>
-                        <div className="grid md:grid-cols-3 gap-8">
-                            {TESTIMONIALS.map(testimonial => <TestimonialCard key={testimonial.id} testimonial={testimonial} />)}
-                        </div>
-                    </div>
-                </section>
-
                 {/* Consultant Section */}
                 <ConsultantSection />
 
                 {/* Where to Buy Section */}
-                <section id="onde-comprar" className="py-20 bg-white">
+                <section id="onde-comprar" className="py-20 bg-brand-green-light">
                     <div className="container mx-auto px-6">
                         <div className="text-center mb-12">
                             <h2 className="text-3xl md:text-4xl font-bold font-serif text-brand-green-dark">Compre Online</h2>
@@ -388,7 +367,7 @@ const Site: React.FC = () => {
                 </section>
 
                 {/* FAQ Section */}
-                <section id="faq" className="py-20 bg-brand-green-light">
+                <section id="faq" className="py-20 bg-white">
                     <div className="container mx-auto px-6">
                         <div className="text-center mb-12">
                             <h2 className="text-3xl md:text-4xl font-bold font-serif text-brand-green-dark">Perguntas Frequentes</h2>
@@ -413,10 +392,15 @@ const Site: React.FC = () => {
                         <div className="max-w-2xl mx-auto bg-white/90 backdrop-blur-sm p-8 md:p-12 rounded-xl shadow-2xl text-center">
                             <h2 className="text-3xl md:text-4xl font-bold font-serif text-brand-green-dark mb-4">Fale Conosco</h2>
                             <p className="text-lg text-gray-700 mb-8">Tem alguma dúvida ou quer fazer um pedido? Nossa equipe está pronta para ajudar!</p>
-                            <a href="https://wa.me/5571999190515" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center bg-green-500 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-green-600 transition-all transform hover:scale-105">
-                                <WhatsAppIcon />
-                                <span className="ml-3">Chamar no WhatsApp</span>
-                            </a>
+                            <div className="flex flex-col items-center gap-4">
+                                <a href="https://wa.me/5571999190515" target="_blank" rel="noopener noreferrer" className="w-full md:w-auto inline-flex items-center justify-center bg-green-500 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-green-600 transition-all transform hover:scale-105 shadow-lg">
+                                    <WhatsAppIcon />
+                                    <span className="ml-3">Chamar no WhatsApp</span>
+                                </a>
+                                <a href="#painel-consultor" className="w-full md:w-auto inline-flex items-center justify-center bg-brand-green-dark text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-opacity-90 transition-all transform hover:scale-105 shadow-lg">
+                                    Painel de Consultores
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -428,13 +412,22 @@ const Site: React.FC = () => {
     );
 }
 
+// Route Types
+type Route = 'site' | 'admin' | 'consultant';
 
 export default function App() {
-  const [isAmdin, setIsAdmin] = useState(false);
+  const [route, setRoute] = useState<Route>('site');
 
   useEffect(() => {
     const checkHash = () => {
-      setIsAdmin(window.location.hash === '#admin');
+      const hash = window.location.hash;
+      if (hash === '#admin') {
+          setRoute('admin');
+      } else if (hash === '#painel-consultor') {
+          setRoute('consultant');
+      } else {
+          setRoute('site');
+      }
     };
 
     window.addEventListener('hashchange', checkHash);
@@ -445,5 +438,7 @@ export default function App() {
     };
   }, []);
 
-  return isAmdin ? <AdminPage /> : <Site />;
+  if (route === 'admin') return <AdminPage />;
+  if (route === 'consultant') return <ConsultantApp />;
+  return <Site />;
 }
